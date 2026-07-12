@@ -8,10 +8,20 @@ export const register = async (
 ) => {
     const result = await authService.register(req.body);
 
+    res.cookie("refreshToken", result.refreshToken, {
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
     return successResponse(
         res,
-        result,
-        "User registered successfully",
+        {
+            user: result.user,
+            accessToken: result.accessToken,
+        },
+        "Registration successful",
         201
     );
 };
