@@ -56,7 +56,7 @@ model User {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   role         Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
 
-  refreshTokens RefreshToken[]
+  refreshTokens Session[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -65,7 +65,7 @@ model User {
   @@index([roleId])
 }
 
-model RefreshToken {
+model Session {
   id String @id @default(uuid())
 
   tokenHash String
@@ -74,7 +74,15 @@ model RefreshToken {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  deviceName String?
+  userAgent  String?
+  ipAddress  String?
+
   expiresAt DateTime
+
+  revokedAt DateTime?
+
+  lastUsedAt DateTime?
 
   createdAt DateTime @default(now())
 

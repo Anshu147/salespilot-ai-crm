@@ -59,7 +59,7 @@ export class AuthService {
                     userId: user.id,
                 });
                 const hashedRefreshToken = await hashToken(refreshToken);
-                await this.authRepository.saveRefreshToken(tx, {
+                await this.authRepository.createSession(tx, {
                     tokenHash: hashedRefreshToken,
 
                     expiresAt: new Date(
