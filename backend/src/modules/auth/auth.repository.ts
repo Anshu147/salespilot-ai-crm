@@ -4,7 +4,9 @@ import prisma from "../../lib/prisma.js";
 export class AuthRepository {
     async findUserByEmail(email: string): Promise<User | null> {
         return prisma.user.findUnique({
-            where: { email },
+            where: { email }, include: {
+                role: true,
+            },
         });
     }
 
@@ -41,7 +43,7 @@ export class AuthRepository {
         });
     }
 
-    async saveRefreshToken(
+    async createSession(
         tx: Prisma.TransactionClient,
         data: Prisma.RefreshTokenCreateInput
     ) {
