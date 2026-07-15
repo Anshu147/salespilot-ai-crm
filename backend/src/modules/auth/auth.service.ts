@@ -16,7 +16,7 @@ export class AuthService {
     }
     async register(input: RegisterInput): Promise<RegisterResponse> {
         try {
-            return transaction(async (tx) => {
+            return await transaction(async (tx) => {
                 const slug = generateOrganizationSlug(input.organization.name);
                 const organization =
                     await authRepository.createOrganization(tx, {
@@ -81,6 +81,7 @@ export class AuthService {
                 };
             });
         } catch (error) {
+            console.log(error)
             if (
                 error instanceof Prisma.PrismaClientKnownRequestError &&
                 error.code === "P2002"
@@ -113,7 +114,7 @@ export class AuthService {
         const accessToken = generateAccessToken({
             userId: existingUser.id,
             organizationId: existingUser.organizationId,
-            role: existingUser.role.name,
+            role: existingUser.roleId.name,
         });
 
         const refreshToken = generateRefreshToken({
