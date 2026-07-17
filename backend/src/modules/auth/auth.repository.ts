@@ -45,9 +45,9 @@ export class AuthRepository {
 
     async createSession(
         tx: Prisma.TransactionClient,
-        data: Prisma.RefreshTokenCreateInput
+        data: Prisma.SessionCreateInput
     ) {
-        return tx.refreshToken.create({
+        return tx.session.create({
             data,
         });
     }
