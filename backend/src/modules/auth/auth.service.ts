@@ -215,7 +215,22 @@ export class AuthService {
         return result;
     }
 
-    async logout() { }
+    async logout(input: RefreshTokenInput) {
+        const decodedRefreshToken = verifyRefreshToken(input.refreshToken);
+        const sessions = await this.authRepository.findSessionsByUserId(
+            decodedRefreshToken.userId
+        );
+
+        const session = sessions.find((s) =>
+            bcrypt.compareSync(input.refreshToken, s.tokenHash)
+        );
+
+        if (!session) {
+            throw new UnauthorizedError("Invalid refresh token");
+        }
+
+        await authRepository.deleteSession(session.id);
+    }
 
     async refreshToken(input: RefreshTokenInput): Promise<RefreshTokenResponse> {
         console.log("IN SERVICE");

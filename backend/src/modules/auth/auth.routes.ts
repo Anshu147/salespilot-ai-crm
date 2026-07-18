@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { login, me, refreshToken, register } from "./auth.controller.js";
+import { login, logout, me, refreshToken, register } from "./auth.controller.js";
 import { validateRequest } from "../../middlewares/validate-request.js";
 import { loginSchema, refreshTokenSchema, registerSchema } from "./auth.validator.js";
 import { authenticate } from "../../middlewares/auth.middleware.js";
@@ -11,4 +11,5 @@ router.get("/me", authenticate, me)
 
 router.post("/login", validateRequest(loginSchema), login)
 router.post("/refresh", refreshToken)
+router.delete("/logout", logout)
 export default router;

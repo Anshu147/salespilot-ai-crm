@@ -76,8 +76,8 @@ export class AuthRepository {
             },
         });
     }
-    async deleteSession(tx: Prisma.TransactionClient, id: string) {
-        return tx.session.delete({
+    async deleteSession(id: string) {
+        return prisma.session.delete({
             where: {
                 id: id
             }
