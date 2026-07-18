@@ -17,7 +17,7 @@ export class AuthService {
     }
     async register(input: RegisterInput): Promise<RegisterResponse> {
         try {
-            return transaction(async (tx) => {
+            return await transaction(async (tx) => {
                 const slug = generateOrganizationSlug(input.organization.name);
                 const organization =
                     await authRepository.createOrganization(tx, {
@@ -82,6 +82,7 @@ export class AuthService {
                 };
             });
         } catch (error) {
+            console.log(error)
             if (
                 error instanceof Prisma.PrismaClientKnownRequestError &&
                 error.code === "P2002"
