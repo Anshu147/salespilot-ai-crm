@@ -1,7 +1,7 @@
 import type { User } from "@prisma/client";
 import type { mapUserToDTO } from "../../utils/user.mapper.js";
 export interface RegisterResponse {
-    user: Omit<User, "password">;
+    user: ReturnType<typeof mapUserToDTO>;
     accessToken: string;
     refreshToken: string;
 }

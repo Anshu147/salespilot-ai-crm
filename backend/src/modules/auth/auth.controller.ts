@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+import { response, type Request, type Response } from "express";
 import authService from "./auth.service.js";
 import { successResponse } from "../../utils/response.js";
 import { UnauthorizedError } from "../../utils/error.js";
@@ -84,4 +84,9 @@ export const logout = async (req: Request, res: Response) => {
         "Logout successful",
         200
     );
+}
+
+export const testingRoute = async (req: Request, res: Response) => {
+    const user = req.user;
+    return successResponse(res, user, "Current User");
 }
