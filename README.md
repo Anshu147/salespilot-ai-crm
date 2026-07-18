@@ -13,4 +13,26 @@ An AI-powered multi-tenant CRM built using:
 
 ## Status
 
-🚧 Phase 1 - Project Setup
+# SalesPilot AI CRM
+
+## Features
+
+## Tech Stack
+
+## Project Structure
+
+## Prerequisites
+
+## Installation
+
+## Environment Variables
+
+## Database Setup
+
+## Running the Project
+
+## Running Tests
+
+## API Testing with Bruno
+
+## Roadmap

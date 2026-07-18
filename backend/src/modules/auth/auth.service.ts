@@ -1,15 +1,16 @@
 import authRepository, { AuthRepository } from "./auth.repository.js";
-import type { LoginInput, RegisterInput } from "./auth.validator.js";
-import type { InputResponse, LoginResponse, RegisterResponse } from "./auth.types.js";
+import type { LoginInput, RefreshTokenInput, RegisterInput } from "./auth.validator.js";
+import type { InputResponse, LoginResponse, RefreshTokenResponse, RegisterResponse } from "./auth.types.js";
 import { transaction } from "../../lib/db.js";
 import { ConflictError, NotFoundError, UnauthorizedError } from "../../utils/error.js";
 import { generateOrganizationSlug } from "../../utils/slug.js";
 import { comparePassword, hashPassword, hashToken } from "../../utils/password.js";
-import { generateAccessToken, generateRefreshToken } from "../../utils/jwt.js";
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "../../utils/jwt.js";
 import { SYSTEM_ROLES } from "../../constants/roles.js";
 import { Prisma } from "../../../generated/prisma/client.js";
 import { REFRESH_TOKEN_EXPIRY_MS } from "../../constants/expire.js";
 import { mapUserToDTO } from "../../utils/user.mapper.js";
+import bcrypt from "bcrypt";
 export class AuthService {
     constructor(private authRepository: AuthRepository) {
 
@@ -92,60 +93,194 @@ export class AuthService {
         }
     }
 
+    // async login(input: LoginInput): Promise<LoginResponse> {
+
+
+    //     return transaction(async (tx) => {
+    //         const existingUser = await authRepository.findUserByEmail(input.email)
+    //         if (!existingUser) {
+    //             throw new UnauthorizedError("Invalid credentials");
+    //         }
+    //         const isPasswordValid = await comparePassword(
+    //             input.password,
+    //             existingUser.password
+    //         );
+    //         if (!isPasswordValid) {
+    //             throw new UnauthorizedError("Invalid credentials");
+    //         }
+    //         if (!existingUser.isActive) {
+    //             throw new UnauthorizedError("Your account is inactive");
+    //         }
+
+    //         const accessToken = generateAccessToken({
+    //             userId: existingUser.id,
+    //             organizationId: existingUser.organizationId,
+    //             role: existingUser.role.name,
+    //         });
+
+    //         const refreshToken = generateRefreshToken({
+    //             userId: existingUser.id,
+    //         });
+    //         const hashedRefreshToken = await hashToken(refreshToken);
+    //         await authRepository.createSession(tx, {
+    //             tokenHash: hashedRefreshToken,
+
+    //             expiresAt: new Date(
+    //                 Date.now() + REFRESH_TOKEN_EXPIRY_MS
+    //             ),
+
+    //             user: {
+    //                 connect: {
+    //                     id: existingUser.id,
+    //                 },
+    //             },
+    //         });
+
+    //         return {
+    //             user: mapUserToDTO(existingUser),
+    //             accessToken,
+    //             refreshToken,
+    //         };
+
+    //     })
+
+    // }
     async login(input: LoginInput): Promise<LoginResponse> {
+        console.time("login-total");
 
+        const result = await transaction(async (tx) => {
+            console.time("find-user");
+            const existingUser = await authRepository.findUserByEmail(input.email);
+            console.timeEnd("find-user");
 
-        const existingUser = await authRepository.findUserByEmail(input.email)
-        if (!existingUser) {
-            throw new UnauthorizedError("Invalid credentials");
-        }
-        const isPasswordValid = await comparePassword(
-            input.password,
-            existingUser.password
-        );
-        if (!isPasswordValid) {
-            throw new UnauthorizedError("Invalid credentials");
-        }
-        if (!existingUser.isActive) {
-            throw new UnauthorizedError("Your account is inactive");
-        }
+            if (!existingUser) {
+                throw new UnauthorizedError("Invalid credentials");
+            }
 
-        const accessToken = generateAccessToken({
-            userId: existingUser.id,
-            organizationId: existingUser.organizationId,
-            role: existingUser.role.name,
-        });
+            console.time("compare-password");
+            const isPasswordValid = await comparePassword(
+                input.password,
+                existingUser.password
+            );
+            console.timeEnd("compare-password");
 
-        const refreshToken = generateRefreshToken({
-            userId: existingUser.id,
-        });
-        const hashedRefreshToken = await hashToken(refreshToken);
-        await authRepository.createSession(tx, {
-            tokenHash: hashedRefreshToken,
+            if (!isPasswordValid) {
+                throw new UnauthorizedError("Invalid credentials");
+            }
 
-            expiresAt: new Date(
-                Date.now() + REFRESH_TOKEN_EXPIRY_MS
-            ),
+            if (!existingUser.isActive) {
+                throw new UnauthorizedError("Your account is inactive");
+            }
 
-            user: {
-                connect: {
-                    id: existingUser.id,
+            console.time("generate-access-token");
+            const accessToken = generateAccessToken({
+                userId: existingUser.id,
+                organizationId: existingUser.organizationId,
+                role: existingUser.role.name,
+            });
+            console.timeEnd("generate-access-token");
+
+            console.time("generate-refresh-token");
+            const refreshToken = generateRefreshToken({
+                userId: existingUser.id,
+            });
+            console.timeEnd("generate-refresh-token");
+
+            console.time("hash-refresh-token");
+            const hashedRefreshToken = await hashToken(refreshToken);
+            console.timeEnd("hash-refresh-token");
+
+            console.time("create-session");
+            await authRepository.createSession(tx, {
+                tokenHash: hashedRefreshToken,
+                expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS),
+                user: {
+                    connect: {
+                        id: existingUser.id,
+                    },
                 },
-            },
+            });
+            console.timeEnd("create-session");
+
+            return {
+                user: mapUserToDTO(existingUser),
+                accessToken,
+                refreshToken,
+            };
         });
 
-        return {
-            user: mapUserToDTO(existingUser),
-            accessToken,
-            refreshToken,
-        };
+        console.timeEnd("login-total");
 
-
+        return result;
     }
 
     async logout() { }
 
-    async refreshToken() { }
+    async refreshToken(input: RefreshTokenInput): Promise<RefreshTokenResponse> {
+        console.log("IN SERVICE");
+
+        // 1. Verify JWT outside transaction
+        const decodedRefreshToken = verifyRefreshToken(input.refreshToken);
+        console.log(decodedRefreshToken, "Decode Refresh Token");
+
+        // 2. Find user's sessions outside transaction
+        const sessions = await this.authRepository.findSessionsByUserId(
+            decodedRefreshToken.userId
+        );
+
+        // 3. Compare refresh token with stored hashes
+        const session = sessions.find((s) =>
+            bcrypt.compareSync(input.refreshToken, s.tokenHash)
+        );
+
+        console.debug(session, "session");
+
+        if (!session) {
+            throw new UnauthorizedError("Invalid refresh token");
+        }
+
+        // 4. Get user outside transaction
+        const user = await this.authRepository.findUserById(
+            decodedRefreshToken.userId
+        );
+
+        if (!user || !user.isActive) {
+            throw new UnauthorizedError("Invalid refresh token");
+        }
+
+        // 5. Generate new tokens outside transaction
+        const accessToken = generateAccessToken({
+            userId: user.id,
+            organizationId: user.organizationId,
+            role: user.role.name,
+        });
+
+        const refreshToken = generateRefreshToken({
+            userId: user.id,
+        });
+
+        const newHashedRefreshToken = await hashToken(refreshToken);
+
+        // 6. Only database writes inside transaction
+        await transaction(async (tx) => {
+            await this.authRepository.deleteSession(tx, session.id);
+
+            await this.authRepository.createSession(tx, {
+                tokenHash: newHashedRefreshToken,
+                expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS),
+                user: {
+                    connect: {
+                        id: user.id,
+                    },
+                },
+            });
+        });
+
+        return {
+            accessToken,
+            refreshToken,
+        };
+    }
 }
 
 export default new AuthService(authRepository);

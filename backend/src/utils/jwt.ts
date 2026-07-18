@@ -9,6 +9,7 @@ interface AccessTokenPayload {
 
 interface RefreshTokenPayload {
     userId: string;
+
 }
 
 export const generateAccessToken = (
@@ -27,10 +28,10 @@ export const generateRefreshToken = (
     });
 };
 
-export const verifyAccessToken = (token: string) => {
-    return jwt.verify(token, env.JWT_ACCESS_SECRET);
+export const verifyAccessToken = (token: string): AccessTokenPayload => {
+    return jwt.verify(token, env.JWT_ACCESS_SECRET) as AccessTokenPayload;
 };
 
-export const verifyRefreshToken = (token: string) => {
-    return jwt.verify(token, env.JWT_REFRESH_SECRET);
+export const verifyRefreshToken = (token: string): RefreshTokenPayload => {
+    return jwt.verify(token, env.JWT_REFRESH_SECRET) as RefreshTokenPayload;
 };

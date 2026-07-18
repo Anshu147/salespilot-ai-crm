@@ -45,10 +45,56 @@ export class AuthRepository {
 
     async createSession(
         tx: Prisma.TransactionClient,
-        data: Prisma.RefreshTokenCreateInput
+        data: Prisma.SessionCreateInput
     ) {
-        return tx.refreshToken.create({
+        return tx.session.create({
             data,
+        });
+    }
+    async findUserById(id: string) {
+        return prisma.user.findUnique({
+            where: {
+                id,
+            },
+            include: {
+                role: true,
+                organization: true,
+            },
+        });
+    }
+    async findSessionByUserId(id: string) {
+        return prisma.session.findMany({
+            where: {
+                userId: id
+            }
+        })
+    }
+    async findSessionByTokenHash(tokenHash: string) {
+        return prisma.session.findFirst({
+            where: {
+                tokenHash,
+            },
+        });
+    }
+    async deleteSession(tx: Prisma.TransactionClient, id: string) {
+        return tx.session.delete({
+            where: {
+                id: id
+            }
+        })
+    }
+    async deleteAllSession(tx: Prisma.TransactionClient, id: string) {
+        return tx.session.deleteMany({
+            where: {
+                userId: id
+            }
+        })
+    }
+    async findSessionsByUserId(userId: string) {
+        return prisma.session.findMany({
+            where: {
+                userId,
+            },
         });
     }
 }

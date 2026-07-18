@@ -1,0 +1,4 @@
+name: local.bru
+variables:
+  - name: baseUrl
+    value: http://localhost:5000
