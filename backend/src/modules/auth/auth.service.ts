@@ -1,16 +1,16 @@
 import authRepository, { AuthRepository } from "./auth.repository.js";
 import type { LoginInput, RefreshTokenInput, RegisterInput } from "./auth.validator.js";
-import type { InputResponse, LoginResponse, RefreshTokenResponse, RegisterResponse } from "./auth.types.js";
+import type { LoginResponse, RefreshTokenResponse, RegisterResponse } from "./auth.types.js";
 import { transaction } from "../../lib/db.js";
 import { ConflictError, NotFoundError, UnauthorizedError } from "../../utils/error.js";
 import { generateOrganizationSlug } from "../../utils/slug.js";
 import { comparePassword, hashPassword, hashToken } from "../../utils/password.js";
-import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "../../utils/jwt.js";
+import { verifyRefreshToken } from "../../utils/jwt.js";
 import { SYSTEM_ROLES } from "../../constants/roles.js";
 import { Prisma } from "../../../generated/prisma/client.js";
-import { REFRESH_TOKEN_EXPIRY_MS } from "../../constants/expire.js";
 import { mapUserToDTO } from "../../utils/user.mapper.js";
 import bcrypt from "bcrypt";
+import { createAuthenticatedSession } from "../../utils/create.authenticate.session.js";
 export class AuthService {
     constructor(private authRepository: AuthRepository) {
 
@@ -51,29 +51,7 @@ export class AuthService {
                             }
                         }
                     });
-                const accessToken = generateAccessToken({
-                    userId: user.id,
-                    organizationId: organization.id,
-                    role: ownerRole.name,
-                });
-
-                const refreshToken = generateRefreshToken({
-                    userId: user.id,
-                });
-                const hashedRefreshToken = await hashToken(refreshToken);
-                await authRepository.createSession(tx, {
-                    tokenHash: hashedRefreshToken,
-
-                    expiresAt: new Date(
-                        Date.now() + REFRESH_TOKEN_EXPIRY_MS
-                    ),
-
-                    user: {
-                        connect: {
-                            id: user.id,
-                        },
-                    },
-                });
+                const { accessToken, refreshToken } = await createAuthenticatedSession(tx, user);
 
                 return {
                     user: mapUserToDTO(user),
@@ -173,38 +151,10 @@ export class AuthService {
                 throw new UnauthorizedError("Your account is inactive");
             }
 
-            console.time("generate-access-token");
-            const accessToken = generateAccessToken({
-                userId: existingUser.id,
-                organizationId: existingUser.organizationId,
-                role: existingUser.role.name,
-            });
-            console.timeEnd("generate-access-token");
-
-            console.time("generate-refresh-token");
-            const refreshToken = generateRefreshToken({
-                userId: existingUser.id,
-            });
-            console.timeEnd("generate-refresh-token");
-
-            console.time("hash-refresh-token");
-            const hashedRefreshToken = await hashToken(refreshToken);
-            console.timeEnd("hash-refresh-token");
-
-            console.time("create-session");
-            await authRepository.createSession(tx, {
-                tokenHash: hashedRefreshToken,
-                expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS),
-                user: {
-                    connect: {
-                        id: existingUser.id,
-                    },
-                },
-            });
-            console.timeEnd("create-session");
+            const { accessToken, refreshToken, user } = await createAuthenticatedSession(tx, existingUser);
 
             return {
-                user: mapUserToDTO(existingUser),
+                user,
                 accessToken,
                 refreshToken,
             };
@@ -264,38 +214,17 @@ export class AuthService {
             throw new UnauthorizedError("Invalid refresh token");
         }
 
-        // 5. Generate new tokens outside transaction
-        const accessToken = generateAccessToken({
-            userId: user.id,
-            organizationId: user.organizationId,
-            role: user.role.name,
+        const result = await transaction(async (tx) => {
+            await this.authRepository.deleteSession(session.id);
+            const { accessToken, refreshToken } = await createAuthenticatedSession(tx, user);
+            return {
+                accessToken,
+                refreshToken,
+            };
         });
 
-        const refreshToken = generateRefreshToken({
-            userId: user.id,
-        });
+        return result;
 
-        const newHashedRefreshToken = await hashToken(refreshToken);
-
-        // 6. Only database writes inside transaction
-        await transaction(async (tx) => {
-            await this.authRepository.deleteSession(tx, session.id);
-
-            await this.authRepository.createSession(tx, {
-                tokenHash: newHashedRefreshToken,
-                expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS),
-                user: {
-                    connect: {
-                        id: user.id,
-                    },
-                },
-            });
-        });
-
-        return {
-            accessToken,
-            refreshToken,
-        };
     }
 }
 

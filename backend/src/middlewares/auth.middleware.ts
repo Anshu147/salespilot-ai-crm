@@ -38,3 +38,18 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         next(error)
     }
 }
+
+
+export const authorize = (allowedRoles: string[]) => {
+    return (req: Request, res: Response, next: NextFunction) => {
+        if (!req.user) {
+            throw new UnauthorizedError("User not authenticated");
+        }
+
+        if (!allowedRoles.includes(req.user.role)) {
+            throw new UnauthorizedError("Insufficient permissions");
+        }
+
+        next();
+    };
+};
