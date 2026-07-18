@@ -73,3 +73,15 @@ export const refreshToken = async (req: Request, res: Response) => {
         201
     );
 }
+
+export const logout = async (req: Request, res: Response) => {
+    const refreshToken = req.cookies.refreshToken;
+    await authService.logout({ refreshToken });
+    res.clearCookie("refreshToken");
+    return successResponse(
+        res,
+        {},
+        "Logout successful",
+        200
+    );
+}
